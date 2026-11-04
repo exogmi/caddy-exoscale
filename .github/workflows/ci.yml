@@ -12,11 +12,18 @@ defaults:
     shell: bash
 jobs:
   test:
+    # GitHub's host is Ubuntu; all job commands run in Debian.
     runs-on: ubuntu-latest
+    container: debian:trixie-slim
     strategy:
       matrix:
         go: ['1.26.x', '1.27.x']
     steps:
+      - name: Install Debian test tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git python3 gcc libc6-dev libstdc++6
+          rm -rf /var/lib/apt/lists/*
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
@@ -42,9 +49,17 @@ jobs:
           EXOSCALE_API_KEY: mock-key
           EXOSCALE_API_SECRET: mock-secret
         run: ./caddy adapt --config examples/Caddyfile --validate > /dev/null
-      - name: Build distributable Docker image
+      - name: Install Debian Docker client
         if: matrix.go == '1.27.x'
-        run: docker build -t caddy-exoscale:test .
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends docker-cli
+          rm -rf /var/lib/apt/lists/*
+      - uses: docker/setup-buildx-action@v4
+        if: matrix.go == '1.27.x'
+      - name: Build Debian runtime image for Linux AMD64
+        if: matrix.go == '1.27.x'
+        run: docker buildx build --platform linux/amd64 --load -t caddy-exoscale:test .
       - name: Check Docker module registration
         if: matrix.go == '1.27.x'
-        run: docker run --rm caddy-exoscale:test caddy list-modules | grep -Fx dns.providers.exoscale
+        run: bash .github/scripts/smoke-image.sh caddy-exoscale:test amd64

@@ -45,11 +45,11 @@ storage were changed. Staging certificates are not publicly trusted.
 
 ## Packaging limits
 
-Docker Hub confirms the pinned `caddy:2.11.8-builder` and
-`caddy:2.11.8-alpine` tags exist. The local Docker daemon did not respond to its
-availability check, so the container image was not built locally. The GitHub CI
-workflow builds the Dockerfile and checks module registration in the image;
-that hosted workflow will run after the repository is pushed.
+The initial Docker recipe used upstream Caddy images. A subsequent hosted run
+failed resolving the builder's platform manifest. That recipe has been replaced
+by a direct Go build and a Debian slim runtime; see the Debian packaging update
+below. The local Docker daemon remains unavailable, so a complete container
+build must pass hosted CI before deployment.
 
 Production CA issuance and long-running renewal were not exercised. They use
 the same DNS-01 provider paths validated above.
@@ -71,3 +71,31 @@ Added and checked locally on 2026-11-04:
 
 After the first successful hosted release, set the GHCR package visibility to
 Public and verify an anonymous pull before deploying the published image.
+
+## Debian packaging update
+
+Pulled the merged Dependabot updates from `main` through `5aff2b4` and retained
+their newer GitHub Action versions. The Dockerfile now builds with
+`golang:1.27.3-trixie` and runs on `debian:trixie-slim`. It installs only CA
+certificates at runtime and preserves the Caddy command and storage conventions.
+
+Both replacement image indexes were checked directly through the Docker
+registry API and contain Linux AMD64 and ARM64 manifests. The old Caddy builder
+index currently also advertises both platforms; the reported failure cannot
+be reproduced from current registry metadata alone. The new build avoids that
+upstream Caddy image dependency and explicitly selects its target platforms.
+
+The exact stripped/static Go build commands succeeded for both Linux targets:
+
+* AMD64: ELF x86-64, statically linked, stripped.
+* ARM64: ELF aarch64, statically linked, stripped.
+
+Go race tests, `go vet`, all ten release-version tests, actionlint, and shell
+syntax validation pass. The default Caddyfile validates. Hosted smoke checks
+now also assert Debian identity, architecture, storage environment, and default
+configuration, using stdin for example configuration to support job containers.
+The full Debian image build and smoke tests remain to be run in hosted CI.
+
+All CI job runtimes now use Debian slim containers, with only the Docker client
+installed where needed. GitHub-hosted Linux VMs themselves remain Ubuntu;
+self-hosted Debian machines would be required to remove that host dependency.

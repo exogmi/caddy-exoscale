@@ -25,6 +25,7 @@ jobs:
   version:
     needs: test
     runs-on: ubuntu-latest
+    container: debian:trixie-slim
     outputs:
       publish: ${{ steps.plan.outputs.publish }}
       image: ${{ steps.plan.outputs.image }}
@@ -32,6 +33,11 @@ jobs:
       version: ${{ steps.plan.outputs.version }}
       reused: ${{ steps.plan.outputs.reused }}
     steps:
+      - name: Install Debian versioning tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git python3 libstdc++6
+          rm -rf /var/lib/apt/lists/*
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -65,8 +71,14 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
+    container: debian:trixie-slim
     timeout-minutes: 30
     steps:
+      - name: Install Debian image tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git docker-cli libstdc++6
+          rm -rf /var/lib/apt/lists/*
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -91,15 +103,9 @@ jobs:
       - name: Smoke test the exact image before uploading
         env:
           IMAGE: ${{ needs.version.outputs.image }}:build-${{ github.run_id }}-${{ matrix.arch }}
+          ARCH: ${{ matrix.arch }}
         run: |
-          docker run --rm "$IMAGE" caddy list-modules | grep -Fx dns.providers.exoscale
-          expected=$(awk '$1 == "github.com/caddyserver/caddy/v2" {print $2}' go.mod)
-          actual=$(docker run --rm "$IMAGE" caddy version)
-          test "${actual%% *}" = "$expected"
-          docker run --rm \
-            -e EXOSCALE_API_KEY=mock-key -e EXOSCALE_API_SECRET=mock-secret \
-            -v "$PWD/examples/Caddyfile:/etc/caddy/Caddyfile:ro" \
-            "$IMAGE" caddy adapt --config /etc/caddy/Caddyfile --validate > /dev/null
+          bash .github/scripts/smoke-image.sh "$IMAGE" "$ARCH"
       - name: Upload tested architecture image
         env:
           IMAGE: ${{ needs.version.outputs.image }}:build-${{ github.run_id }}-${{ matrix.arch }}
@@ -114,6 +120,7 @@ jobs:
       needs.version.outputs.publish == 'true' &&
       (needs.image.result == 'success' || needs.version.outputs.reused == 'true')
     runs-on: ubuntu-latest
+    container: debian:trixie-slim
     timeout-minutes: 10
     permissions:
       contents: write
@@ -126,6 +133,11 @@ jobs:
       COMMIT: ${{ github.sha }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      - name: Install Debian publication tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git docker-cli gh libstdc++6
+          rm -rf /var/lib/apt/lists/*
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
