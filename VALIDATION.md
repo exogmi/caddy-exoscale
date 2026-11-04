@@ -47,7 +47,7 @@ storage were changed. Staging certificates are not publicly trusted.
 
 The initial Docker recipe used upstream Caddy images. A subsequent hosted run
 failed resolving the builder's platform manifest. That recipe has been replaced
-by a direct Go build and a Debian slim runtime; see the Debian packaging update
+by a direct Go build and the official Caddy Alpine runtime; see the packaging update
 below. The local Docker daemon remains unavailable, so a complete container
 build must pass hosted CI before deployment.
 
@@ -72,18 +72,18 @@ Added and checked locally on 2026-11-04:
 After the first successful hosted release, set the GHCR package visibility to
 Public and verify an anonymous pull before deploying the published image.
 
-## Debian packaging update
+## Packaging update
 
 Pulled the merged Dependabot updates from `main` through `5aff2b4` and retained
 their newer GitHub Action versions. The Dockerfile now builds with
-`golang:1.27.3-trixie` and runs on `debian:trixie-slim`. It installs only CA
-certificates at runtime and preserves the Caddy command and storage conventions.
+`golang:1.27.3-trixie` and runs on the official `caddy:2.11.8-alpine` image. It
+inherits Caddy's configuration, CA certificates, command, and storage conventions.
 
 Both replacement image indexes were checked directly through the Docker
 registry API and contain Linux AMD64 and ARM64 manifests. The old Caddy builder
 index currently also advertises both platforms; the reported failure cannot
 be reproduced from current registry metadata alone. The new build avoids that
-upstream Caddy image dependency and explicitly selects its target platforms.
+upstream Caddy builder image dependency and explicitly selects its target platforms.
 
 The exact stripped/static Go build commands succeeded for both Linux targets:
 
@@ -92,10 +92,10 @@ The exact stripped/static Go build commands succeeded for both Linux targets:
 
 Go race tests, `go vet`, all ten release-version tests, actionlint, and shell
 syntax validation pass. The default Caddyfile validates. Hosted smoke checks
-now also assert Debian identity, architecture, storage environment, and default
-configuration, using stdin for example configuration to support job containers.
-The full Debian image build and smoke tests remain to be run in hosted CI.
+now also assert Alpine identity, architecture, storage environment, and default
+configuration, using stdin for example configuration. The full image build and
+smoke tests remain to be run in hosted CI.
 
-All CI job runtimes now use Debian slim containers, with only the Docker client
-installed where needed. GitHub-hosted Linux VMs themselves remain Ubuntu;
-self-hosted Debian machines would be required to remove that host dependency.
+The official Caddy runtime manifest was checked directly and supports Linux
+AMD64 and ARM64. Workflows use standard GitHub-hosted Linux runners directly;
+the temporary Debian job containers and custom runtime configuration were removed.

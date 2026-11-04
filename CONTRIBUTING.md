@@ -15,7 +15,8 @@ zone and Let's Encrypt staging. See README.md for their environment variables.
 Use a dedicated test key with DNS permissions and allow the tests to finish
 cleanup. Normal CI compiles these tests but never supplies real credentials.
 
-When updating Caddy, update its version in go.mod, run `go mod tidy`, verify the
+When updating Caddy, update its version in go.mod and the Dockerfile's runtime
+image together, run `go mod tidy`, verify the
 example configuration, and repeat staging issuance
 before releasing. Every successful Release workflow on `main` creates the Git
 version tag, GitHub release, and GHCR images automatically after testing both
@@ -43,15 +44,13 @@ after its first publication to enable anonymous pulls. No Exoscale credentials
 are used during image builds or publication.
 
 The Dockerfile compiles the module and Caddy directly from `go.mod` using the
-Debian-based official Go image; its runtime is Debian slim with CA certificates.
+Debian-based official Go image, and copies the binary into the official Caddy
+Alpine runtime. Its configuration, CA certificates, and startup defaults are
+inherited from that runtime image.
 Maintain both Linux AMD64 and ARM64 targets. The shared container smoke check
 is `.github/scripts/smoke-image.sh IMAGE ARCH`. It verifies the architecture,
-Debian release identity, Caddy/module version, persistent storage paths, default
+Alpine identity, Caddy/module version, persistent storage paths, default
 configuration, and example DNS configuration without credentials.
 
-Workflows use Debian job containers on GitHub-hosted Linux machines. Keep
-bootstrapping before JavaScript actions: the slim image needs Git, CA roots,
-and `libstdc++6` for the action runtime. Test jobs additionally need Python and
-GCC/libc headers for Go's race detector. Docker jobs need only `docker-cli`,
-not the daemon. Pipe Caddyfile contents into smoke-test containers rather than
-binding a workspace path that exists only inside the job container.
+Workflows use standard GitHub-hosted Linux runners directly. The image smoke
+test pipes example Caddyfile contents over stdin and requires no host bind mounts.

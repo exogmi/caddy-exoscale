@@ -87,16 +87,16 @@ locally instead:
 docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
 
-The image uses **Debian 13 `trixie-slim`**, with only CA certificates added.
+The runtime uses the **official `caddy:2.11.8-alpine` image**.
 A separate Debian-based Go builder compiles a stripped, statically linked Caddy
 binary directly from this repository. The Caddy version comes from `go.mod`;
-there is no dependency on upstream Caddy builder/runtime image manifests.
+there is no dependency on upstream Caddy builder image manifests.
 BuildKit explicitly targets Linux AMD64 or ARM64, with module and compiler
 caches. No Go compiler, Git, curl, or build tools are included in the runtime.
 
-The image preserves `/etc/caddy/Caddyfile`, `/data`, `/config`, the standard
-`caddy run` command, and ports 80/443 plus UDP 443. Without a mounted Caddyfile,
-the default configuration serves a simple HTTP response on port 80. `.env` is
+The image inherits Caddy's default configuration, `/etc/caddy/Caddyfile`, `/data`,
+`/config`, startup command, and ports 80/443 plus UDP 443. Only the Caddy binary
+is replaced to include the Exoscale module. `.env` is
 excluded from Git and the Docker build context. Compose uses host networking
 for Linux deployments and persistent certificate/configuration volumes.
 
@@ -126,16 +126,12 @@ propagation, but does not require inbound access to ports 80 or 443.
 Pull requests run CI without registry write access or real DNS credentials.
 Pushes to `main` run the same CI before the Release workflow publishes images.
 Both native Linux AMD64 and ARM64 images must build and pass module-registration,
-Caddy-version, platform, Debian-runtime, storage-location, and Caddyfile-validation
+Caddy-version, platform, Alpine-runtime, storage-location, and Caddyfile-validation
 checks before release tags are promoted. CI uses an explicit Linux platform and
 the Buildx container driver to avoid implicit platform selection.
 
-All job commands run in Debian slim containers, including testing, versioning,
-image building, and publication. GitHub's underlying hosted Linux machines
-still use Ubuntu: GitHub does not offer a standard hosted Debian runner. A fully
-Debian host requires self-hosted runners. The published image and its build
-stages contain no Ubuntu packages. Docker jobs install only Debian's Docker
-client and use the host daemon; they do not start a nested Docker daemon.
+CI runs directly on standard GitHub-hosted Linux runners. Their Ubuntu host
+operating system is separate from the Alpine-based published image.
 
 Versioning is automatic, based on existing Git tags:
 

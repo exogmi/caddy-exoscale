@@ -5,7 +5,7 @@ image=${1:?usage: smoke-image.sh IMAGE ARCH}
 arch=${2:?usage: smoke-image.sh IMAGE ARCH}
 
 test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" = "linux/$arch"
-docker run --rm "$image" sh -ec '. /etc/os-release; test "$ID" = debian'
+docker run --rm "$image" sh -ec '. /etc/os-release; test "$ID" = alpine'
 docker run --rm "$image" caddy list-modules | grep -Fx dns.providers.exoscale
 expected=$(awk '$1 == "github.com/caddyserver/caddy/v2" {print $2}' go.mod)
 actual=$(docker run --rm "$image" caddy version)
