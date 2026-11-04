@@ -1,0 +1,31 @@
+coder.containerstack.net, *.coder.containerstack.net {
+	reverse_proxy localhost:7080
+	tls {
+		dns exoscale {
+			api_key {env.EXOSCALE_API_KEY}
+			api_secret {env.EXOSCALE_API_SECRET}
+		}
+	}
+	encode gzip
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+}
+
+litellm.containerstack.net {
+	reverse_proxy localhost:4000
+	tls {
+		dns exoscale {
+			api_key {env.EXOSCALE_API_KEY}
+			api_secret {env.EXOSCALE_API_SECRET}
+		}
+	}
+}
+
+ppciso.containerstack.net {
+	reverse_proxy localhost:8443
+	tls {
+		dns exoscale {
+			api_key {env.EXOSCALE_API_KEY}
+			api_secret {env.EXOSCALE_API_SECRET}
+		}
+	}
+}

@@ -1,0 +1,17 @@
+services:
+  caddy:
+    build: .
+    image: caddy-exoscale:local
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./examples/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      EXOSCALE_API_KEY: ${DNS_EXOSCALE_API_KEY:?set DNS_EXOSCALE_API_KEY}
+      EXOSCALE_API_SECRET: ${DNS_EXOSCALE_API_SECRET:?set DNS_EXOSCALE_API_SECRET}
+
+volumes:
+  caddy_data:
+  caddy_config:
