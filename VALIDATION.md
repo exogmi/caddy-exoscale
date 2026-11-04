@@ -53,3 +53,21 @@ that hosted workflow will run after the repository is pushed.
 
 Production CA issuance and long-running renewal were not exercised. They use
 the same DNS-01 provider paths validated above.
+
+## Release automation
+
+Added and checked locally on 2026-11-04:
+
+* actionlint v1.7.12 validates CI, the reusable workflow call, and Release.
+* Ten Python regression tests pass for initial/patch/minor/major versioning,
+  numerical tag ordering, invalid/prerelease tags, retry reuse, stale releases,
+  GitHub output generation using real Git history, and Go major import paths.
+* Go race tests and `go vet ./...` still pass.
+* Both the default published-image Compose configuration and the local-build
+  override pass `docker compose config --quiet`.
+* Release builds and smoke tests native AMD64 and ARM64 images, then publishes
+  versioned manifests, a Git/GitHub release, and `latest`. These hosted registry
+  operations have not run locally; the repository must first be pushed.
+
+After the first successful hosted release, set the GHCR package visibility to
+Public and verify an anonymous pull before deploying the published image.

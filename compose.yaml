@@ -1,7 +1,6 @@
 services:
   caddy:
-    build: .
-    image: caddy-exoscale:local
+    image: ghcr.io/exogmi/caddy-exoscale:${CADDY_EXOSCALE_VERSION:-latest}
     restart: unless-stopped
     network_mode: host
     volumes:

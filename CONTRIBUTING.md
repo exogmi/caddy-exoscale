@@ -17,6 +17,27 @@ cleanup. Normal CI compiles these tests but never supplies real credentials.
 
 When updating Caddy, update its version in go.mod and the Dockerfile together,
 run `go mod tidy`, verify the example configuration, and repeat staging issuance
-before releasing. For a release, publish a semantic version tag after CI passes;
-users can then pin that tag with xcaddy. Releases and container publication are
-manual until maintainers choose their distribution policy.
+before releasing. Every successful Release workflow on `main` creates the Git
+version tag, GitHub release, and GHCR images automatically after testing both
+container architectures. Do not create competing version tags manually.
+
+Use `feat:` for a minor release, a conventional commit header with `!` or a
+`BREAKING CHANGE:` footer for a major release, and ordinary commits for patch
+releases. Version selection considers all commit messages since the latest
+stable tag, starts at `v1.0.0`, and never increments again for a retry of an
+already released commit. The module's version is independent of Caddy's version.
+Use squash merge titles that preserve the intended conventional commit prefix.
+For a major release, migrate the Go module path and imports (for example, add
+`/v2`) in the breaking change; version validation rejects mismatched Go module
+major versions before publication.
+
+Run release version regression tests with:
+
+```sh
+python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v
+```
+
+CI also checks workflow syntax with actionlint. Package publication uses the
+repository's `GITHUB_TOKEN`; maintainers must set the new GHCR package to Public
+after its first publication to enable anonymous pulls. No Exoscale credentials
+are used during image builds or publication.

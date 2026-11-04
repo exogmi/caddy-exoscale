@@ -1,0 +1,174 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+# Serialize the whole pipeline so version selection and latest cannot race.
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  test:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/ci.yml
+
+  version:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.plan.outputs.publish }}
+      image: ${{ steps.plan.outputs.image }}
+      tag: ${{ steps.plan.outputs.tag }}
+      version: ${{ steps.plan.outputs.version }}
+      reused: ${{ steps.plan.outputs.reused }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Plan version for current main
+        id: plan
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "This commit has been superseded on main; skipping release."
+            echo 'publish=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo 'publish=true' >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          python3 .github/scripts/release_version.py
+
+  image:
+    needs: version
+    if: needs.version.outputs.publish == 'true' && needs.version.outputs.reused != 'true'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build native image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          tags: ${{ needs.version.outputs.image }}:build-${{ github.run_id }}-${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=release-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.arch }}
+      - name: Smoke test the exact image before uploading
+        env:
+          IMAGE: ${{ needs.version.outputs.image }}:build-${{ github.run_id }}-${{ matrix.arch }}
+        run: |
+          docker run --rm "$IMAGE" caddy list-modules | grep -Fx dns.providers.exoscale
+          expected=$(awk '$1 == "github.com/caddyserver/caddy/v2" {print $2}' go.mod)
+          actual=$(docker run --rm "$IMAGE" caddy version)
+          test "${actual%% *}" = "$expected"
+          docker run --rm \
+            -e EXOSCALE_API_KEY=mock-key -e EXOSCALE_API_SECRET=mock-secret \
+            -v "$PWD/examples/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            "$IMAGE" caddy adapt --config /etc/caddy/Caddyfile --validate > /dev/null
+      - name: Upload tested architecture image
+        env:
+          IMAGE: ${{ needs.version.outputs.image }}:build-${{ github.run_id }}-${{ matrix.arch }}
+        run: docker push "$IMAGE"
+
+  publish:
+    needs: [test, version, image]
+    if: >-
+      always() && !cancelled() &&
+      needs.test.result == 'success' &&
+      needs.version.result == 'success' &&
+      needs.version.outputs.publish == 'true' &&
+      (needs.image.result == 'success' || needs.version.outputs.reused == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      packages: write
+    env:
+      IMAGE: ${{ needs.version.outputs.image }}
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: ${{ needs.version.outputs.tag }}
+      REUSED: ${{ needs.version.outputs.reused }}
+      COMMIT: ${{ github.sha }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Protect against stale retries and tag collisions
+        run: |
+          if [ "$COMMIT" != "$(git rev-parse origin/main)" ]; then
+            echo '::error::This commit has been superseded. Run Release on current main.'
+            exit 1
+          fi
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            test "$(git rev-list -n 1 "$TAG")" = "$COMMIT"
+          fi
+      - name: Publish versioned multi-platform manifest
+        if: env.REUSED != 'true'
+        env:
+          BUILD: build-${{ github.run_id }}
+        run: |
+          docker buildx imagetools create \
+            --tag "$IMAGE:$VERSION" --tag "$IMAGE:$TAG" \
+            "$IMAGE:$BUILD-amd64" "$IMAGE:$BUILD-arm64"
+      - name: Create Git tag and GitHub release
+        run: |
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --target "$COMMIT" \
+              --title "$TAG" --generate-notes
+          fi
+      - name: Promote tested release to latest
+        run: docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE:$VERSION"
+      - name: Write release summary
+        run: |
+          {
+            echo "Released $TAG from $COMMIT"
+            echo
+            echo "Images: $IMAGE:$VERSION, $IMAGE:$TAG, $IMAGE:latest"
+            echo
+            echo 'Platforms: linux/amd64 and linux/arm64'
+            echo
+            echo 'First publication: set the GHCR package visibility to Public in GitHub package settings.'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -58,19 +58,43 @@ uses Exoscale's default API endpoint and request signing.
 
 ## Docker and migration
 
+Published releases are available as multi-platform images for Linux AMD64 and
+ARM64, with Caddy and this module included:
+
 ```sh
-cp .env.example .env
-# Fill in the DNS credentials locally, then:
-docker compose up -d --build
+docker pull ghcr.io/exogmi/caddy-exoscale:1.0.0
+# Or follow the most recently completed release:
+docker pull ghcr.io/exogmi/caddy-exoscale:latest
 ```
 
-The Dockerfile builds this checkout with xcaddy and Caddy 2.11.8. `.env` is
-excluded from both Git and the Docker build context. Compose uses host networking
-for Linux deployments and persistent certificate/configuration volumes.
+The first release is `1.0.0`; these images become available after the code is
+pushed, the Release workflow passes, and the GHCR package is made public.
+Pin a version or image digest for a controlled production rollout. Updating
+`latest` in the registry does not automatically restart running containers.
 
-For your existing stack, point the `caddy` build at this Dockerfile and keep the
-existing `./caddy_data:/data` and `./caddy_config:/config` mounts to retain issued
-certificates and ACME accounts. Keep the environment mapping from
+```sh
+cp .env.example .env
+# Fill in the DNS credentials and desired image version locally, then:
+docker compose pull
+docker compose up -d
+```
+
+Compose uses `CADDY_EXOSCALE_VERSION` from `.env` (defaults to `latest` if unset).
+The sample `.env.example` pins the initial `1.0.0` release. To build this checkout
+locally instead:
+
+```sh
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
+```
+
+The Dockerfile uses xcaddy and Caddy 2.11.8. `.env` is excluded from Git and the
+Docker build context. Compose uses host networking for Linux deployments and
+persistent certificate/configuration volumes.
+
+For your existing stack, replace the Caddy `build` section and local `image` with
+`image: ghcr.io/exogmi/caddy-exoscale:1.0.0`. Keep the existing
+`./caddy_data:/data` and `./caddy_config:/config` mounts to retain issued
+certificates and ACME accounts, and keep the environment mapping from
 `DNS_EXOSCALE_API_KEY/SECRET` to `EXOSCALE_API_KEY/SECRET`. You can retain your
 existing Caddyfile, bind addresses, and reverse proxies. The standalone example
 uses new named volumes; do not switch an existing deployment to those volumes
@@ -87,6 +111,46 @@ For initial validation add this global option to a test Caddyfile:
 Staging certificates are deliberately untrusted. Remove the staging CA setting
 for normal Let's Encrypt issuance. DNS-01 requires public authoritative DNS
 propagation, but does not require inbound access to ports 80 or 443.
+
+## Automated releases
+
+Pull requests run CI without registry write access or real DNS credentials.
+Pushes to `main` run the same CI before the Release workflow publishes images.
+Both native Linux AMD64 and ARM64 images must build and pass module-registration,
+Caddy-version, and Caddyfile-validation checks before release tags are promoted.
+
+Versioning is automatic, based on existing Git tags:
+
+* The first release is `v1.0.0`.
+* Ordinary commits, including `fix:`, `docs:`, and `ci:`, increment the patch.
+* `feat:` or `feat(scope):` increments the minor version.
+* A conventional commit header containing `!`, or a `BREAKING CHANGE:` footer,
+  increments the major version. The highest bump since the previous release wins.
+* A successful release creates a matching Git tag and GitHub release, and image
+  tags `1.0.0`, `v1.0.0`, and `latest` (using the computed version).
+
+The module's release version is separate from the bundled Caddy version. A
+major release requires its Go module/import paths to match that major
+version (for example, `/v2` for `v2.0.0`). The workflow checks this before builds.
+No version-bump commit is written back to `main`. Release runs are serialized;
+superseded commits are skipped, and fast pushes may be coalesced by GitHub's
+concurrency queue. The next successful release includes accumulated changes.
+Re-running Release for an already released current commit reuses its version
+and repairs release/latest publication without rebuilding its versioned images.
+Per-architecture `build-*` registry tags are internal staging images and are not
+supported release tags. Failed builds do not update `latest`.
+
+Publishing uses the built-in `GITHUB_TOKEN` with job-scoped `packages: write` and
+`contents: write`; no registry password or PAT is needed. Repository policy must
+permit those permissions. After the first publication, open the repository's
+**Packages → caddy-exoscale → Package settings → Change visibility → Public**.
+GHCR initially creates packages as private, even for a public source repository;
+public images can then be pulled anonymously. See
+[GitHub's Container registry documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+
+Wait for the first successful Release run and verify an anonymous image pull
+before deploying the published image. To retry a failed publication, use
+**Actions → Release → Run workflow** on `main`.
 
 ## Record behavior
 
