@@ -151,8 +151,8 @@ github.com/dunglas/httpsfv v1.1.1/go.mod h1:zID2mqw9mFsnt7YC3vYQ9/cjq30q41W+1AnD
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/dustin/go-humanize v1.1.0 h1:dbKTrvD0klcbBV/h4AWJdMuZogJACoMlvWIWZ5b2xWg=
 github.com/dustin/go-humanize v1.1.0/go.mod h1:hc1CvRkJMsgxqjmjMQF3QNRAZBwY8AXBAzKYoSX9sFI=
-github.com/exoscale/egoscale/v3 v3.1.62 h1:54+SdfmqxUoJlvLK47AbVFWGLS5UzZZPnVkKfR62zms=
-github.com/exoscale/egoscale/v3 v3.1.62/go.mod h1:DUTgeubl5msPAo3SKFed04AxNhyTNOrCTJHZDRYLR10=
+github.com/exoscale/egoscale/v3 v3.1.63 h1:l/zN5Akjl3vISAADa54sVEtuPxAMCHS25rwLLoN8M30=
+github.com/exoscale/egoscale/v3 v3.1.63/go.mod h1:DUTgeubl5msPAo3SKFed04AxNhyTNOrCTJHZDRYLR10=
 github.com/fatih/color v1.19.0 h1:Zp3PiM21/9Ld6FzSKyL5c/BULoe/ONr9KlbYVOfG8+w=
 github.com/fatih/color v1.19.0/go.mod h1:zNk67I0ZUT1bEGsSGyCZYZNrHuTkJJB+r6Q9VuMi0LE=
 github.com/felixge/httpsnoop v1.1.0 h1:3YtUj32ZZkqZtt3sZZsClsymw/QDuVfpNhoA31zeORc=
