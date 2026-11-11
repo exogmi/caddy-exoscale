@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/caddyserver/caddy/v2 v2.11.8
-	github.com/exoscale/egoscale/v3 v3.1.62
+	github.com/exoscale/egoscale/v3 v3.1.63
 	github.com/libdns/libdns v1.1.1
 	github.com/miekg/dns v1.1.73
 )
